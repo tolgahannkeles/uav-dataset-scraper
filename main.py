@@ -1,3 +1,4 @@
+import base64
 import os
 import time
 import random
@@ -8,17 +9,6 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
-import base64
-
-"""
-Requirements:
-1. Python 3.6+
-2. Install required packages: pip install requests selenium
-3. Download Chrome WebDriver: https://sites.google.com/a/chromium.org/chromedriver/downloads
-4. Extract the downloaded file and move the executable to a directory in PATH
-5. Run the script: python main.py
-"""
-
 
 # Set up Chrome WebDriver
 def get_driver():
@@ -29,11 +19,7 @@ def get_driver():
     chrome_options.add_argument("--disable-dev-shm-usage")
     return webdriver.Chrome(options=chrome_options)
 
-
 # Download image from URL
-import base64
-
-# Download image from URL (handles Base64 images as well)
 def download_image(image_url, folder, count):
     try:
         if image_url.startswith("data:image"):
@@ -53,26 +39,29 @@ def download_image(image_url, folder, count):
     except Exception as e:
         print(f"Error downloading {image_url}: {e}")
 
-
-
 # Scrape images for a given search query
-def scrape_images(query, max_images=200):
+def scrape_images(query, max_images=20):
     driver = get_driver()
     search_url = f"https://www.google.com/search?tbm=isch&q={query.replace(' ', '+')}"
     driver.get(search_url)
     time.sleep(2)
 
     # Scroll to load more images
-    for _ in range(5):
+    for _ in range(10):  # Scroll more times for better results
         driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
         time.sleep(random.uniform(1, 3))
 
     image_elements = driver.find_elements(By.CSS_SELECTOR, "img")
 
-    # Filtreleme: sadece geçerli görsel URL'lerini al
+    # Filter out invalid image URLs and ones that are not in search results
     image_urls = [
         img.get_attribute("src") for img in image_elements
         if img.get_attribute("src") and not img.get_attribute("src").startswith("data:image")
+        and not img.get_attribute("src").startswith("blob:")
+        and not "favicon" in img.get_attribute("src")
+        and not "icon" in img.get_attribute("src")
+        and not "logo" in img.get_attribute("src")
+        and "http" in img.get_attribute("src")  # Ensure it's a proper image URL
     ]
 
     driver.quit()
@@ -86,7 +75,6 @@ def scrape_images(query, max_images=200):
         download_image(img_url, folder, count)
 
     print(f"Downloaded {len(image_urls[:max_images])} images for {query}")
-
 
 # Parallel execution
 def main():
@@ -110,7 +98,6 @@ def main():
     num_processes = min(len(queries), 4)  # Limit to 4 parallel processes
     with multiprocessing.Pool(num_processes) as pool:
         pool.map(scrape_images, queries)
-
 
 if __name__ == "__main__":
     main()
